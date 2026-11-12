@@ -1,3 +1,4 @@
+import type { WebSessionTabsSnapshotApplyOptions } from '../state'
 import { recordBrowserInitializationReceipt } from '../browser-initialization-presentation'
 import type { RuntimeRpcResponse } from '../../../../../shared/runtime-rpc-envelope'
 import type { RuntimeMobileSessionTabsResult } from '../../../../../shared/runtime-session-contracts'
@@ -59,6 +60,7 @@ type SnapshotRefreshOptions = {
     hostTerminalHandle: string
   }
   afterCurrentInFlight?: boolean
+  reconcileBrowserPage?: WebSessionTabsSnapshotApplyOptions['reconcileBrowserPage']
   errorMode?: 'warn' | 'throw'
   isCurrent?(): boolean
 }
@@ -208,7 +210,9 @@ async function reconcileWebRuntimeSessionTabs(
               recovered,
               environmentId,
               undefined,
-              undefined,
+              options.reconcileBrowserPage
+                ? { reconcileBrowserPage: options.reconcileBrowserPage }
+                : undefined,
               changedAgentPaneKeys
             )
           : state

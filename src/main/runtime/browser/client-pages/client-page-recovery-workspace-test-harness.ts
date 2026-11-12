@@ -1,3 +1,4 @@
+import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-session-contracts'
 import { OrcaRuntimeService } from '../../orca-runtime'
 import type { ResolvedWorktree } from '../../workspaces/catalog/runtime-worktree-path-identity'
 
@@ -44,4 +45,11 @@ export class RecoveryWorkspaceRuntime extends OrcaRuntimeService {
   override async resolveBrowserExecutionHostKeyForWorkspace() {
     return { status: 'resolved' as const, executionHostKey: 'execution-host-a' }
   }
+}
+
+export type RecoveryRuntimeObservation = RecoveryWorkspaceRuntime & {
+  projectedFrames: number
+  sessionTabsSequence(): number
+  peekSnapshotForClient(worktree: string, clientId: string): RuntimeMobileSessionTabsResult
+  snapshotForClient(worktree: string, clientId: string): RuntimeMobileSessionTabsResult
 }

@@ -1,3 +1,7 @@
+import {
+  copyBrowserPageHandles,
+  annotateBrowserPageHandles
+} from '@/store/slices/browser/hosts/browser-initialization-presentation-ownership'
 import { endBrowserPageInitializationAction } from '../../components/browser-pane/navigate/browser-page-deferred-navigation'
 import { useAppStore } from '@/store'
 import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-types'
@@ -13,6 +17,7 @@ export type BrowserInitializationDelivery = {
   environmentId: string
   pairingRevision: number | undefined
   live: boolean
+  publishedPresentationCount: number
 }
 export type BrowserInitializationPresentation = {
   disposition: 'pending' | 'stopped' | 'unavailable'
@@ -23,7 +28,6 @@ type Receipt = { delivery: BrowserInitializationDelivery; receivedFrame: number 
 type DeliveryEntry = {
   delivery: BrowserInitializationDelivery
   transportGeneration: number
-  lost: boolean
 }
 const deliveries = new Map<string, DeliveryEntry>()
 const receipts = new WeakMap<RuntimeMobileSessionTabsResult, Receipt>()
@@ -38,13 +42,22 @@ export function captureBrowserInitializationDelivery(
       entry.delivery.live = false
     }
     entry = {
-      delivery: { environmentId, pairingRevision: revision, live: true },
-      transportGeneration: -1,
-      lost: false
+      delivery: {
+        environmentId,
+        pairingRevision: revision,
+        live: true,
+        publishedPresentationCount: 0
+      },
+      transportGeneration: -1
     }
     deliveries.set(environmentId, entry)
   } else if (!entry.delivery.live) {
-    entry.delivery = { environmentId, pairingRevision: revision, live: true }
+    entry.delivery = {
+      environmentId,
+      pairingRevision: revision,
+      live: true,
+      publishedPresentationCount: 0
+    }
   }
   return entry.delivery
 }
@@ -121,15 +134,18 @@ function revokeBrowserInitializationDeliveries(
   const affected = new Set<string>()
   for (const environmentId of environmentIds) {
     const entry = deliveries.get(environmentId)
-    if (!entry || (entry.lost && !remove)) {
+    if (!entry || (!entry.delivery.live && !remove)) {
       continue
     }
-    entry.lost = true
+    const presented = entry.delivery.publishedPresentationCount > 0
     entry.delivery.live = false
+    entry.delivery.publishedPresentationCount = 0
     if (remove) {
       deliveries.delete(environmentId)
     }
-    affected.add(environmentId)
+    if (presented) {
+      affected.add(environmentId)
+    }
   }
   if (affected.size === 0) {
     return
@@ -151,8 +167,9 @@ function revokeBrowserInitializationDeliveries(
         continue
       }
       if (handles === state.remoteBrowserPageHandlesByPageId) {
-        handles = { ...handles }
+        handles = copyBrowserPageHandles(handles)
       }
+      annotateBrowserPageHandles(handles, [pageId])
       endBrowserPageInitializationAction(pageId)
       handles[pageId] = {
         ...handle,
@@ -179,8 +196,6 @@ export function installBrowserInitializationPresentationLifetime(): () => void {
       entry.transportGeneration = transportGeneration
       if (diagnostics.state === 'closed' || diagnostics.state === 'reconnecting') {
         revokeBrowserInitializationDeliveries([environmentId])
-      } else if (diagnostics.state === 'ready') {
-        entry.lost = false
       }
     }
   )

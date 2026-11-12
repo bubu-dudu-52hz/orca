@@ -55,6 +55,10 @@ export class BrowserHostInitializationCompletion {
     }
   }
 
+  pendingRecords(state: BrowserHostLeaseState): Iterable<InitializationRecord> {
+    return this.contexts.get(state.token)?.members ?? []
+  }
+
   seal(state: BrowserHostLeaseState, blocked: boolean): void {
     const context = this.contexts.get(state.token)
     if (!context) {
@@ -69,19 +73,18 @@ export class BrowserHostInitializationCompletion {
     if (outcome !== 'published' && outcome !== 'retained-clean' && outcome !== 'disposed') {
       return
     }
-    const contexts = this.contextsByRecord.get(record)
-    if (!contexts) {
-      return
-    }
-    this.contextsByRecord.delete(record)
+    this.publishDevices(this.unlink(record))
+  }
+
+  unlink(record: InitializationRecord): Set<string> {
     const devices = new Set<string>()
-    for (const context of contexts) {
+    const contexts = this.contextsByRecord.get(record)
+    this.contextsByRecord.delete(record)
+    for (const context of contexts ?? []) {
       context.members.delete(record)
       devices.add(context.state.lease.pairedDeviceId)
     }
-    for (const device of devices) {
-      this.publish(device)
-    }
+    return devices
   }
 
   retire(state: BrowserHostLeaseState): void {
@@ -89,7 +92,12 @@ export class BrowserHostInitializationCompletion {
     if (context) {
       this.remove(context)
     }
-    this.publish(state.lease.pairedDeviceId)
+  }
+
+  publishDevices(devices: Iterable<string>): void {
+    for (const device of devices) {
+      this.publish(device)
+    }
   }
 
   private link(context: Completion, record: InitializationRecord): void {

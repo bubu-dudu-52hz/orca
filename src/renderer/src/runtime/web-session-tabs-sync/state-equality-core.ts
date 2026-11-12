@@ -1,3 +1,4 @@
+import { copyBrowserPageHandles } from '@/store/slices/browser/hosts/browser-initialization-presentation-ownership'
 import {
   AGENT_STATUS_STALE_AFTER_MS,
   agentStatusEvidenceObservedAt
@@ -133,13 +134,21 @@ export function writableWebSessionTabsRecord<K extends WebSessionTabsBatchRecord
 ): NonNullable<WebSessionTabsSyncState[K]> {
   const record = (state[recordKey] ?? {}) as NonNullable<WebSessionTabsSyncState[K]>
   if (!batchContext) {
-    return { ...record } as NonNullable<WebSessionTabsSyncState[K]>
+    return (
+      recordKey === 'remoteBrowserPageHandlesByPageId'
+        ? copyBrowserPageHandles(state.remoteBrowserPageHandlesByPageId)
+        : { ...record }
+    ) as NonNullable<WebSessionTabsSyncState[K]>
   }
   // Batch-owned record copies can be updated in place without recopying all workspaces.
   if (batchContext.changedRecords.has(recordKey)) {
     return record
   }
-  const next = { ...record } as NonNullable<WebSessionTabsSyncState[K]>
+  const next = (
+    recordKey === 'remoteBrowserPageHandlesByPageId'
+      ? copyBrowserPageHandles(state.remoteBrowserPageHandlesByPageId)
+      : { ...record }
+  ) as NonNullable<WebSessionTabsSyncState[K]>
   const mutableState = state as unknown as Record<
     WebSessionTabsBatchRecordKey,
     Record<string, unknown>

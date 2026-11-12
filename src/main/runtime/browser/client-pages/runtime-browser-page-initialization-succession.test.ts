@@ -407,3 +407,43 @@ it('serves a newer attach once after an older held cleanup fails and publishes i
     await h.close()
   }
 })
+
+it('unlinks a closed terminal page from the surviving scope before old authority retirement publishes completion', async () => {
+  const h = createRecoveryLoop(['slow'])
+  const successor = createRecoveryPeer(h.hostRuntime, 'successor-host')
+  try {
+    const started = h.hold('slow')
+    const first = h.attach()
+    await started
+    const retirement = h.holdRetirement('slow')
+    successor.attach()
+    await retirement.started
+    await retireRuntimeBrowserClientPage(
+      {
+        getBrowserHostLeaseRegistry: () => h.authority,
+        getRuntimeBrowserPageRegistry: () => h.pages,
+        notifyHeadlessBrowserSessionTabsChanged: (id) =>
+          h.hostRuntime.notifyMobileSessionTabsChanged(id),
+        resolveBrowserWorkspace: async () => ({ id: 'repo-1::/tmp/worktree-a' })
+      },
+      h.pages.getPage('slow')!
+    )
+    expect(h.pages.getPage('slow')).toBeUndefined()
+    h.fence()
+    first.abort()
+    await first.completion
+    await vi.waitFor(() => expect(h.snapshots.some((s) => s.reconciled)).toBe(true))
+    expect(
+      h.hostRuntime.snapshotForClient('repo-1::/tmp/worktree-a', 'device-a')
+        .clientHostedPagesUnreconciled
+    ).toBeUndefined()
+    retirement.release()
+    h.release('slow')
+    await vi.waitFor(() => expect(h.executor.snapshotPageInventory()).toEqual([]))
+    expect(successor.executor.snapshotPageInventory()).toEqual([])
+    expect(h.pages.getPage('slow')).toBeUndefined()
+  } finally {
+    await successor.close()
+    await h.close()
+  }
+})

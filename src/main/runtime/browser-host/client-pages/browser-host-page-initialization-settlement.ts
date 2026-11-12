@@ -19,7 +19,7 @@ export function settleInitialization(
   outcome: InitializationOutcome,
   owner: {
     authority: Omit<InitializationTransactionAuthority, 'current'>
-    records: Map<string, InitializationRecord>
+    removeRecord(record: InitializationRecord): void
     completed(record: InitializationRecord, outcome: InitializationOutcome): void
     queues: Map<symbol, InitializationQueue>
     retireLease(state: BrowserHostLeaseState): void
@@ -95,7 +95,7 @@ export function settleInitialization(
         record.authorityRetired = true
         record.scope = undefined
       } else if (!record.stopped) {
-        owner.records.delete(record.browserPageId)
+        owner.removeRecord(record)
       }
     }
   }

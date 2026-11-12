@@ -1,10 +1,14 @@
+import { BROWSER_CLIENT_PAGE_INITIALIZATION_CAPABILITY } from '../../../../shared/browser/client-hosting/browser-client-host-protocol'
 import type { BrowserClientHostedPageInventory } from '../../../../shared/browser/client-hosting/browser-client-host-protocol'
 import type { BrowserHostLeaseState } from '../leases/browser-host-lease-records'
 import type {
   Initialization,
   InitializationRecord
 } from './browser-host-page-initialization-records'
-import { sameInitializationTarget } from './browser-host-page-initialization-records'
+import {
+  sameInitializationTarget,
+  currentInitializationRequest
+} from './browser-host-page-initialization-records'
 import { forgetAbsentInitializationTarget } from './browser-host-page-initialization-commands'
 
 export function observeInitializationAttach(
@@ -12,7 +16,7 @@ export function observeInitializationAttach(
   state: BrowserHostLeaseState,
   inventory: readonly BrowserClientHostedPageInventory[] | undefined,
   cancel: (operation: Initialization) => void,
-  settled: (record: InitializationRecord) => void
+  removeRecord: (record: InitializationRecord) => void
 ): void {
   const byPage = inventory && new Map(inventory.map((page) => [page.browserPageId, page]))
   for (const record of records.values()) {
@@ -23,7 +27,14 @@ export function observeInitializationAttach(
       continue
     }
     const operation = record.operation
-    if (operation && operation.admission.connectionToken !== state.connectionToken) {
+    if (
+      operation &&
+      operation.admission.connectionToken !== state.connectionToken &&
+      !(
+        state.lease.hostCapabilities.includes(BROWSER_CLIENT_PAGE_INITIALIZATION_CAPABILITY) &&
+        currentInitializationRequest(record, state)
+      )
+    ) {
       cancel(operation)
     }
     const target = record.target
@@ -49,8 +60,7 @@ export function observeInitializationAttach(
       record.target = undefined
       record.releaseCleanup?.()
       record.releaseCleanup = undefined
-      settled(record)
-      records.delete(record.browserPageId)
+      removeRecord(record)
     }
   }
 }

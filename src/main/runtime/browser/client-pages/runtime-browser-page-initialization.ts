@@ -1,3 +1,7 @@
+import {
+  normalizeBrowserNavigationUrl,
+  redactKagiSessionToken
+} from '../../../../shared/browser-url'
 import type {
   InitializationOutcome,
   InitializationDisposition
@@ -81,7 +85,10 @@ export function admitRuntimeBrowserPageInitialization(input: {
         placement,
         executionHostKey
       )
-      input.pages.updatePage(page.browserPageId, placement, { url, loading: false })
+      input.pages.updatePage(page.browserPageId, placement, {
+        url: redactKagiSessionToken(normalizeBrowserNavigationUrl(url) ?? url),
+        loading: false
+      })
       input.notifyWorkspace(page.workspaceId)
       const published = input.pages.getPage(page.browserPageId)
       if (!published || !sameRuntimeBrowserPlacement(published.placement, placement)) {

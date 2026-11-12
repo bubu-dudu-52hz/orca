@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const BrowserPageInitializationAction = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('navigate'), url: z.string().min(1).max(8192) }),
+  z.object({ type: z.literal('navigate'), url: z.string().min(1) }),
   z.object({ type: z.literal('stop') })
 ])
 export type BrowserPageInitializationAction = z.infer<typeof BrowserPageInitializationAction>

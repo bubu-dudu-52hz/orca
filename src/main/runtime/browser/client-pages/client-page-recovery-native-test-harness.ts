@@ -1,3 +1,4 @@
+import { BrowserRoutePageAvailability } from '../../../browser/routing/guest-authority/browser-route-page-availability'
 import { BrowserClientPageCommandExecutor } from '../../../browser/client-pages/execution/browser-client-page-command-executor'
 import { createHarness } from '../../../browser/client-pages/execution/browser-client-page-command-executor-test-harness'
 import { BrowserClientHostCommandDispatcher } from '../../../browser/client-hosts/commands/browser-client-host-command-dispatcher'
@@ -5,6 +6,8 @@ import type { BrowserClientHostCommandEvent } from '../../../../shared/browser/c
 
 export function createRecoveryNativeLoop(hooks: { failCommit?: boolean }) {
   const native = createHarness()
+  const initializedUrls: string[] = []
+  const availability = new BrowserRoutePageAvailability()
   const commits = new Map<string, ReturnType<typeof Promise.withResolvers<string>>>()
   const navigations = new Map<string, ReturnType<typeof Promise.withResolvers<void>>>()
   const retirements = new Map<string, ReturnType<typeof Promise.withResolvers<void>>>()
@@ -16,6 +19,7 @@ export function createRecoveryNativeLoop(hooks: { failCommit?: boolean }) {
       ...native.dependencies,
       routeWebContents: {
         ...native.dependencies.routeWebContents,
+        watchPageAvailability: availability.watch,
         navigateGuest: async (_claim, url) => {
           const id = new URL(url).pathname.slice(1)
           navigations.get(id)?.resolve()
@@ -23,6 +27,7 @@ export function createRecoveryNativeLoop(hooks: { failCommit?: boolean }) {
           return true
         },
         initializeGuest: (_claim, url, signal) => {
+          initializedUrls.push(url)
           if (hooks.failCommit) {
             return Promise.reject(new Error('precommit-failure'))
           }
@@ -68,7 +73,18 @@ export function createRecoveryNativeLoop(hooks: { failCommit?: boolean }) {
   }
   return {
     native,
+    initializedUrls,
     createExecutor,
+    lose(id: string) {
+      const registration =
+        native.dependencies.routeWebContents.claimGuestLifecycle.mock.calls.findLast(
+          ([registration]) => registration.browserPageId === id
+        )?.[0]
+      if (!registration) {
+        throw new Error('Missing native page')
+      }
+      availability.report(registration)
+    },
     hold(id: string) {
       commits.set(id, Promise.withResolvers<string>())
       const started = Promise.withResolvers<void>()

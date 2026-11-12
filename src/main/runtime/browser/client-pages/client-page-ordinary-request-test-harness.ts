@@ -70,7 +70,8 @@ export function ordinaryPageRpc(h: ReturnType<typeof createRecoveryLoop>, remote
   return async (
     method: 'browser.tabCreate' | 'browser.openUrl',
     page: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    url = 'https://example.internal/new'
   ) => {
     const replies: { ok: boolean; error?: { message: string } }[] = []
     await rpc.dispatchStreaming(
@@ -87,7 +88,7 @@ export function ordinaryPageRpc(h: ReturnType<typeof createRecoveryLoop>, remote
                   ? {}
                   : { placement: { kind: 'client', browserHostClientId: 'client-a' } })
               }
-            : { worktree: 'id:repo-1::/tmp/worktree-a', url: 'https://example.internal/new' }
+            : { worktree: 'id:repo-1::/tmp/worktree-a', url }
       },
       (text) => replies.push(JSON.parse(text)),
       {

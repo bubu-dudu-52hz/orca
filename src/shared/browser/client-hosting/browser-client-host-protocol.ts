@@ -207,7 +207,7 @@ const BrowserClientPageCommandAuthority = BrowserClientHostLeaseAuthority.extend
 
 const BrowserClientHostCreatePageCommand = z.object({
   type: z.literal('createPage'),
-  initialUrl: z.string().min(1).max(8192).optional(),
+  initialUrl: z.string().min(1).optional(),
   browserProfileId: Identity,
   // Sent only to profile-switch-v1 desktops, for host-owned profiles the desktop does not know.
   profile: BrowserClientProfileMetadata.optional(),
@@ -218,7 +218,7 @@ const BrowserClientHostCreatePageCommand = z.object({
 
 const BrowserClientHostNavigateCommand = z.object({
   type: z.literal('navigate'),
-  url: z.string().min(1).max(8192)
+  url: z.string().min(1)
 })
 
 const BrowserClientHostReclaimPageCommand = z.object({

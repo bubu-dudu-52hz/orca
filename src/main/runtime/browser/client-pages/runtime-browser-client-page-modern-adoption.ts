@@ -1,3 +1,7 @@
+import {
+  normalizeBrowserNavigationUrl,
+  redactKagiSessionToken
+} from '../../../../shared/browser-url'
 import { batchBrowserPageInitializationNotifications } from './browser-page-initialization-notifications'
 import {
   RESTORED_CLIENT_HOSTED_BROWSER_PLACEMENT,
@@ -32,7 +36,9 @@ export function admitModernAdoptions(
         pairedDeviceId: options.lease.pairedDeviceId,
         placement: RESTORED_CLIENT_HOSTED_BROWSER_PLACEMENT,
         executionHostKey: RESTORED_CLIENT_HOSTED_EXECUTION_HOST_KEY,
-        url: inventory.currentUrl ?? 'about:blank',
+        url: redactKagiSessionToken(
+          normalizeBrowserNavigationUrl(inventory.currentUrl ?? 'about:blank') ?? 'about:blank'
+        ),
         loading: false,
         active: false,
         title: 'Browser',

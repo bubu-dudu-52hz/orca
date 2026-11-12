@@ -9,13 +9,10 @@ export function markBrowserClientPageUnavailable(
 ): boolean {
   const page = pages.get(registration.browserPageId)
   if (
-    !page ||
+    !matchesBrowserClientRetainedPage(pages, page, registration) ||
     page.retiring ||
     page.reconciling ||
-    page.inventory.state !== 'active' ||
-    page.generation !== registration.pageHostGeneration ||
-    page.registration.webContentsId !== registration.webContentsId ||
-    page.registration.rendererWebContentsId !== registration.rendererWebContentsId
+    page.inventory.state !== 'active'
   ) {
     return false
   }
@@ -38,10 +35,10 @@ export function publishBrowserClientRetainedPage(
   page.releaseAvailabilityWatch = dependencies.routeWebContents.watchPageAvailability?.(
     page.inventory.browserPageId,
     (registration) => {
-      if (
-        pages.get(registration.browserPageId) === page &&
-        page.inventory.state === 'outcomeUnknown'
-      ) {
+      if (!matchesBrowserClientRetainedPage(pages, page, registration)) {
+        return false
+      }
+      if (page.inventory.state === 'outcomeUnknown') {
         onInitializationUnavailable?.()
       }
       return markBrowserClientPageUnavailable(pages, registration, (browserPageId, generation) =>
@@ -50,4 +47,21 @@ export function publishBrowserClientRetainedPage(
     }
   )
   pages.set(page.inventory.browserPageId, page)
+}
+
+function matchesBrowserClientRetainedPage(
+  pages: ReadonlyMap<string, BrowserClientRetainedPage>,
+  page: BrowserClientRetainedPage | undefined,
+  registration: BrowserRoutePageGuestIdentity
+): page is BrowserClientRetainedPage {
+  return Boolean(
+    page &&
+    pages.get(registration.browserPageId) === page &&
+    page.registration.partition === registration.partition &&
+    page.registration.browserPageId === registration.browserPageId &&
+    page.generation === registration.pageHostGeneration &&
+    page.registration.pageHostGeneration === registration.pageHostGeneration &&
+    page.registration.rendererWebContentsId === registration.rendererWebContentsId &&
+    page.registration.webContentsId === registration.webContentsId
+  )
 }

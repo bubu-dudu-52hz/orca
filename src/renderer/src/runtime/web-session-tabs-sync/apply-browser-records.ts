@@ -1,3 +1,4 @@
+import { annotateBrowserPageHandles } from '@/store/slices/browser/hosts/browser-initialization-presentation-ownership'
 import type { applyTerminalRecordUpdates } from './apply-terminal-records'
 import {
   browserCertificateFailureEqual,
@@ -69,6 +70,7 @@ export function applyBrowserRecordUpdates(context: BrowserRecordContext) {
                   batchContext
                 )
               : nextRemoteBrowserPageHandlesByPageId
+          annotateBrowserPageHandles(nextRemoteBrowserPageHandlesByPageId, [page.id])
           delete nextRemoteBrowserPageHandlesByPageId[page.id]
         }
       }
@@ -107,6 +109,7 @@ export function applyBrowserRecordUpdates(context: BrowserRecordContext) {
         nextRemoteBrowserPageHandlesByPageId === state.remoteBrowserPageHandlesByPageId
           ? writableWebSessionTabsRecord(state, 'remoteBrowserPageHandlesByPageId', batchContext)
           : nextRemoteBrowserPageHandlesByPageId
+      annotateBrowserPageHandles(nextRemoteBrowserPageHandlesByPageId, [page.id])
       nextRemoteBrowserPageHandlesByPageId[page.id] = {
         environmentId,
         remotePageId,

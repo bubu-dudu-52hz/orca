@@ -244,11 +244,19 @@ export class BrowserClientPageInitializations {
   }
 
   async closeAll(): Promise<void> {
+    const failures: unknown[] = []
     for (const [id, initializer] of this.operations) {
-      await this.cleanupInitializer(initializer)
-      if (this.operations.get(id) === initializer) {
-        this.operations.delete(id)
+      try {
+        await this.cleanupInitializer(initializer)
+        if (this.operations.get(id) === initializer) {
+          this.operations.delete(id)
+        }
+      } catch (error) {
+        failures.push(error)
       }
+    }
+    if (failures.length) {
+      throw new AggregateError(failures, 'Browser client initializers cleanup failed')
     }
   }
 }

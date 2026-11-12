@@ -12,6 +12,7 @@ export function retireInitializationAuthority(
   releaseAdmission: (admission: InitializationAdmission) => void,
   enqueue: (record: InitializationRecord, admission: InitializationAdmission) => void,
   claimCleanup: (id: string) => () => void,
+  removeRecord: (record: InitializationRecord) => void,
   state: BrowserHostLeaseState
 ): void {
   if (attachments.get(state.lease.browserHostClientId) === state) {
@@ -68,7 +69,7 @@ export function retireInitializationAuthority(
         releaseAdmission(successor)
       }
       if (record.closed || record.stopped) {
-        records.delete(record.browserPageId)
+        removeRecord(record)
       }
     }
   }

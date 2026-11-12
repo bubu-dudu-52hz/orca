@@ -292,3 +292,34 @@ it('transfers a real logical-capacity publication failure to exact cleanup until
     await h.close()
   }
 })
+
+it('keeps the created tab usable when an older desktop cannot receive its long initial URL', async () => {
+  const h = createRecoveryLoop([])
+  try {
+    h.attach({ modern: false })
+    const request = ordinaryPageRpc(h)
+    const long = `https://example.internal/${'x'.repeat(8300)}`
+    const before = h.authority.select('client-a')
+    expect(await request('browser.openUrl', 'long', new AbortController().signal, long)).toEqual([
+      expect.objectContaining({ ok: true })
+    ])
+    expect(h.commands.some((event) => event.command.type === 'createPage')).toBe(true)
+    expect(
+      h.commands.some((event) => event.command.type === 'navigate' && event.command.url === long)
+    ).toBe(false)
+    expect(h.authority.select('client-a')).toEqual(before)
+    expect(await request('browser.openUrl', 'short', new AbortController().signal)).toEqual([
+      expect.objectContaining({ ok: true })
+    ])
+    expect(
+      h.commands.some(
+        (event) =>
+          event.command.type === 'navigate' && event.command.url === 'https://example.internal/new'
+      )
+    ).toBe(true)
+    expect(h.authority.select('client-a')).toEqual(before)
+    expect(h.errors).toEqual([])
+  } finally {
+    await h.close()
+  }
+})

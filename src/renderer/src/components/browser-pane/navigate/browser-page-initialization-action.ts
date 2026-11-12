@@ -43,18 +43,24 @@ export async function routeBrowserPageInitializationAction(input: {
   const connection = getRuntimeEnvironmentConnectionGeneration(environmentId)
   const remotePageId = useAppStore.getState().remoteBrowserPageHandlesByPageId[pageId]?.remotePageId
   const receivedFrame = nextReceivedSessionTabsFrame()
-  const live = (): boolean => {
+  const alive = (): boolean => {
     const state = useAppStore.getState()
     const handle = state.remoteBrowserPageHandlesByPageId[pageId]
     return (
       isBrowserInitializationDeliveryCurrent(delivery) &&
-      handle?.initializationPresentation?.delivery === presentation?.delivery &&
       getRuntimeEnvironmentRevision(environmentId) === revision &&
       getRuntimeEnvironmentConnectionGeneration(environmentId) === connection &&
       handle?.environmentId === environmentId &&
       handle.remotePageId === remotePageId &&
-      Boolean(handle.placement && sameRuntimeBrowserPlacement(handle.placement, input.placement)) &&
       Boolean(state.browserPagesByWorkspace[input.workspaceId]?.some((page) => page.id === pageId))
+    )
+  }
+  const live = (): boolean => {
+    const handle = useAppStore.getState().remoteBrowserPageHandlesByPageId[pageId]
+    return (
+      alive() &&
+      handle?.initializationPresentation?.delivery === presentation?.delivery &&
+      Boolean(handle?.placement && sameRuntimeBrowserPlacement(handle.placement, input.placement))
     )
   }
   const current = (): boolean => live() && hasBrowserPageInitializationAction(pageId, token)
@@ -103,12 +109,18 @@ export async function routeBrowserPageInitializationAction(input: {
     // A control rejection is not a guest document error; the current snapshot owns its outcome.
   } finally {
     released = endBrowserPageInitializationAction(pageId, token) || released
-    if (!applied && released && live() && !hasBrowserPageInitializationAction(pageId)) {
+    if (!applied && released && alive() && !hasBrowserPageInitializationAction(pageId)) {
+      const state = useAppStore.getState()
+      const page = state.browserPagesByWorkspace[input.workspaceId]?.find(
+        (page) => page.id === pageId
+      )
+      const handle = state.remoteBrowserPageHandlesByPageId[pageId]
       await refreshWebRuntimeSessionTabsSnapshot(environmentId, input.worktreeId, {
         expectedEnvironmentPairingRevision: revision,
         acceptCurrentSnapshot: true,
         afterCurrentInFlight: true,
-        isCurrent: () => live() && !hasBrowserPageInitializationAction(pageId)
+        isCurrent: () => alive() && !hasBrowserPageInitializationAction(pageId),
+        ...(page && handle ? { reconcileBrowserPage: { page, handle } } : {})
       })
     }
   }

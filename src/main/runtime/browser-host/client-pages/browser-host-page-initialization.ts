@@ -71,7 +71,7 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
         records: this.records,
         placements: this.authority.placements,
         requireState: this.requireState,
-        settled: (record) => this.completion.settle(record, 'disposed'),
+        removeRecord: (record) => this.removeRecord(record),
         cleanup: (record, current, release, isCurrent) =>
           this.startClosedCleanup(record, current, release, isCurrent)
       },
@@ -83,6 +83,16 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
   sealAttach(state: BrowserHostLeaseState, blocked: boolean, connectionId?: string): void {
     if (connectionId && state.lease.connectionId !== connectionId) {
       return
+    }
+    // Unclaimed requests end at this attach; claimed requests already transferred before cancellation.
+    for (const record of this.completion.pendingRecords(state)) {
+      const operation = record.operation
+      if (
+        operation?.admission.state === state &&
+        operation.admission.connectionToken !== state.connectionToken
+      ) {
+        this.cancelOperation(operation)
+      }
     }
     this.preparation.seal(state)
     this.completion.seal(state, blocked)
@@ -101,7 +111,7 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
       state,
       inventory,
       (operation) => this.cancelOperation(operation),
-      (record) => this.completion.settle(record, record.closed ? 'disposed' : 'retained-clean')
+      (record) => this.removeRecord(record)
     )
   }
 
@@ -126,6 +136,8 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
         .filter((record) => record.scope === state && this.presentation(record))
         .map((record) => record.workspaceId)
     )
+    const affected = new Set([state.lease.pairedDeviceId])
+    this.completion.retire(state)
     retireInitializationAuthority(
       this.records,
       this.queues,
@@ -133,10 +145,11 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
       (admission) => this.releaseAdmission(admission),
       (record, admission) => this.enqueue(record, admission),
       (id) => this.authority.placements.claimClientPageCleanup(id),
+      (record) => this.removeRecord(record, affected),
       state
     )
     this.preparation.retire(state)
-    this.completion.retire(state)
+    this.completion.publishDevices(affected)
     for (const workspace of changed) {
       this.changed(workspace)
     }
@@ -145,6 +158,7 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
   private admissionOwner(): InitializationAdmissionOwner {
     return {
       records: this.records,
+      removeRecord: (record) => this.removeRecord(record),
       placements: this.authority.placements,
       join: (state, record) => this.completion.join(state, record),
       requireState: this.requireState,
@@ -281,7 +295,7 @@ export class BrowserHostPageInitializations extends BrowserHostPageInitializatio
     settleInitialization(operation, outcome, {
       authority: this.authority,
       completed: (record, outcome) => this.completion.settle(record, outcome),
-      records: this.records,
+      removeRecord: (record) => this.removeRecord(record),
       queues: this.queues,
       retireLease: this.retireLease,
       clean: (op) => this.clean(op),

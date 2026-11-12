@@ -8,10 +8,14 @@ import type {
   BrowserHostPageInitializationInput,
   InitializationDisposition
 } from './browser-host-page-initialization-records'
-import { sameInitializationPlacement } from './browser-host-page-initialization-records'
+import {
+  sameInitializationPlacement,
+  currentInitializationRequest
+} from './browser-host-page-initialization-records'
 
 export type InitializationAdmissionOwner = {
   records: Map<string, InitializationRecord>
+  removeRecord(record: InitializationRecord): void
   join(state: BrowserHostLeaseState, record: InitializationRecord): void
   placements: BrowserHostPagePlacementRegistry
   requireState(state: BrowserHostLeaseState): void
@@ -57,6 +61,10 @@ export function admitInitialization(
   }
   if (record && !sameInitializationPlacement(record.expected, input.expected)) {
     return 'stale'
+  }
+  const requested = !input.replace && currentInitializationRequest(record, state)
+  if (requested) {
+    input = { ...input, url: requested.input.url }
   }
   if (record) {
     owner.join(state, record)
@@ -125,7 +133,7 @@ export function admitInitialization(
     owner.releaseAdmission(admission)
     if (!operation) {
       record.releaseCleanup?.()
-      owner.records.delete(input.browserPageId)
+      owner.removeRecord(record)
     }
     throw error
   }

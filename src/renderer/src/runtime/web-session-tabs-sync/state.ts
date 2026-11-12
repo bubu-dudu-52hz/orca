@@ -65,6 +65,10 @@ export type WebSessionTabsSnapshotApplyOptions = {
   contentScope?: 'all' | 'agent-session'
   preserveLocalLayout?: boolean
   terminalPtyMode?: 'local' | 'remote'
+  reconcileBrowserPage?: {
+    page: BrowserPage
+    handle: WebSessionTabsSyncState['remoteBrowserPageHandlesByPageId'][string]
+  }
 }
 
 export type TrackedWebSessionTabsWorktree = {

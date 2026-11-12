@@ -21,6 +21,21 @@ export abstract class BrowserHostPageInitializationControls {
     protected readonly requireState: (state: BrowserHostLeaseState) => void,
     protected readonly changed: (workspaceId: string) => void
   ) {}
+  protected removeRecord(record: InitializationRecord, affected?: Set<string>): void {
+    if (this.records.get(record.browserPageId) !== record) {
+      return
+    }
+    this.records.delete(record.browserPageId)
+    const devices = this.completion.unlink(record)
+    if (affected) {
+      for (const device of devices) {
+        affected.add(device)
+      }
+    } else {
+      this.completion.publishDevices(devices)
+    }
+  }
+
   protected abstract cancelOperation(operation: Initialization): void
   protected abstract clean(operation: Initialization): void
   resume(state: BrowserHostLeaseState): void {
@@ -200,8 +215,7 @@ export abstract class BrowserHostPageInitializationControls {
       return true
     }
     if (record.authorityRetired && !record.operation && !record.successor) {
-      this.completion.settle(record, 'disposed')
-      this.records.delete(id)
+      this.removeRecord(record)
       return true
     }
     record.closed = true
@@ -218,8 +232,7 @@ export abstract class BrowserHostPageInitializationControls {
         this.startClosedCleanup(record, state)
       } else if (!record.target) {
         record.releaseCleanup?.()
-        this.completion.settle(record, 'disposed')
-        this.records.delete(id)
+        this.removeRecord(record)
       }
     }
     return true

@@ -70,7 +70,8 @@ export function prepareWebSessionTabsSnapshotBrowser(
         hostGroupIdByTabId,
         targetGroupId,
         mirroredTerminalTabEntries.length,
-        now
+        now,
+        base.options?.reconcileBrowserPage
       )
     : []
   const mirroredBrowserWorkspaceIds = new Set(

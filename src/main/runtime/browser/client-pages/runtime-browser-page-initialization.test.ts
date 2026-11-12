@@ -195,3 +195,50 @@ it('four held initializations keep the next queued and closing one joins cleanup
   await Promise.all(['slow2', 'slow3', 'slow4'].map((id) => h.published.get(id)!.promise))
   h.host.release()
 })
+
+it('sanitizes imported and committed canonical addresses before publishing or persisting them', async () => {
+  const raw = 'https://kagi.com/search?q=proof&token=synthetic-pr41490'
+  const h = rig(
+    [],
+    [
+      {
+        authorityRuntimeId: 'runtime-old',
+        authorityEpoch: 'epoch-old',
+        browserHostClientId: 'host',
+        browserHostGeneration: 1,
+        browserPageId: 'slow-import',
+        pageHostGeneration: 1,
+        workspaceId: 'workspace',
+        browserProfileId: 'default',
+        executionHostKey: 'old-key',
+        currentUrl: raw,
+        state: 'active'
+      }
+    ]
+  )
+  const observed: string[] = []
+  h.notifyWorkspace.mockImplementation(() => {
+    observed.push(...h.pages.listPages().map((page) => page.url))
+  })
+  try {
+    await adoptRuntimeBrowserClientPagesFromInventory(h.options)
+    h.authority.sealClientPageInitializations(h.host.lease, false)
+    await vi.waitFor(() => expect(h.held.has('slow-import')).toBe(true))
+    expect(h.pages.getPage('slow-import')?.url).toBe('https://kagi.com/search?q=proof')
+    expect(h.commands.find((event) => event.command.type === 'navigate')?.command).toEqual({
+      type: 'navigate',
+      url: raw
+    })
+    h.release('slow-import', raw)
+    await vi.waitFor(() =>
+      expect(h.pages.getPage('slow-import')?.placement.pageHostGeneration).toBeGreaterThan(0)
+    )
+    expect(buildPersistedClientHostedBrowserPages(h.pages.listPages(), 100)[0].url).toBe(
+      'https://kagi.com/search?q=proof'
+    )
+    expect(observed.length).toBeGreaterThan(0)
+    expect(observed.every((url) => !url.includes('synthetic-pr41490'))).toBe(true)
+  } finally {
+    h.host.release()
+  }
+})

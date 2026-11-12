@@ -1,4 +1,7 @@
-import { RecoveryWorkspaceRuntime } from './client-page-recovery-workspace-test-harness'
+import {
+  RecoveryWorkspaceRuntime,
+  type RecoveryRuntimeObservation
+} from './client-page-recovery-workspace-test-harness'
 import { BROWSER_CLIENT_AUTOMATION_HOST_CAPABILITY } from '../../../../shared/browser/client-hosting/browser-client-automation-protocol'
 import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-session-contracts'
 import { createProfile } from './client-hosted-browser-persistence-test-harness'
@@ -20,19 +23,14 @@ import { getRuntimeBrowserPageRegistry } from './runtime-browser-page-registry'
 import { getBrowserHostLeaseRegistry } from '../../browser-host/leases/browser-host-lease-registry-instance'
 import { RESTORED_CLIENT_HOSTED_BROWSER_PLACEMENT } from './client-hosted-browser-page-persistence'
 
-type RecoveryRuntimeObservation = RecoveryWorkspaceRuntime & {
-  projectedFrames: number
-  sessionTabsSequence(): number
-  peekSnapshotForClient(worktree: string, clientId: string): RuntimeMobileSessionTabsResult
-  snapshotForClient(worktree: string, clientId: string): RuntimeMobileSessionTabsResult
-}
-
 export function createRecoveryLoop(
   ids: readonly string[],
   loopOptions: {
     worktreeCount?: number
     maxCachedCommandResults?: number
     maxConcurrentHandlers?: number
+    nativeLoop?: ReturnType<typeof createRecoveryNativeLoop>
+    executor?: BrowserClientPageCommandExecutor
   } = {}
 ) {
   const cleanups = new Map<string, () => void>()
@@ -45,7 +43,7 @@ export function createRecoveryLoop(
     failCommit?: boolean
     delivery?: (event: BrowserClientHostCommandEvent, dispatch: () => void) => void
   } = {}
-  const nativeLoop = createRecoveryNativeLoop(hooks)
+  const nativeLoop = loopOptions.nativeLoop ?? createRecoveryNativeLoop(hooks)
   const { native } = nativeLoop
   const commands: BrowserClientHostCommandEvent[] = []
   const results: { type: string; id: string; status: string }[] = []
@@ -114,7 +112,7 @@ export function createRecoveryLoop(
       }
     }
   }
-  executor = nativeLoop.createExecutor()
+  executor = loopOptions.executor ?? nativeLoop.createExecutor()
   for (const id of ids) {
     pages.publishClientPage({
       browserPageId: id,
@@ -246,6 +244,7 @@ export function createRecoveryLoop(
     snapshots,
     errors,
     native,
+    nativeLoop,
     hostRuntime,
     rpc,
     caller,

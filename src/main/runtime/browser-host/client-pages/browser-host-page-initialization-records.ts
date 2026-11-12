@@ -175,3 +175,39 @@ export function initializationCleanupServesCurrentDemand(operation: Initializati
     attempt.stopped === Boolean(operation.record.stopped)
   )
 }
+
+/** A reconnect can transfer command intent, never a predecessor's cleanup input. */
+export function currentInitializationRequest(
+  record: InitializationRecord | undefined,
+  state: BrowserHostLeaseState
+): InitializationAdmission | undefined {
+  if (
+    !record ||
+    record.closed ||
+    record.stopped ||
+    record.authorityRetired ||
+    record.pairedDeviceId !== state.lease.pairedDeviceId
+  ) {
+    return undefined
+  }
+  const operation = record.operation
+  const admission =
+    record.successor ??
+    (operation &&
+    !operation.detached &&
+    !operation.controller.signal.aborted &&
+    operation.phase !== 'published'
+      ? operation.admission
+      : undefined)
+  const input = admission?.input
+  return admission &&
+    input &&
+    !input.signal?.aborted &&
+    input.isCurrent() &&
+    input.workspaceId === record.workspaceId &&
+    input.browserProfileId === record.browserProfileId &&
+    admission.state.lease.pairedDeviceId === record.pairedDeviceId &&
+    sameInitializationPlacement(input.expected, record.expected)
+    ? admission
+    : undefined
+}

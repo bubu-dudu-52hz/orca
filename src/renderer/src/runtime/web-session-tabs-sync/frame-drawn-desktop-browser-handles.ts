@@ -1,3 +1,4 @@
+import { annotateBrowserPageHandles } from '@/store/slices/browser/hosts/browser-initialization-presentation-ownership'
 import { browserInitializationReceiptStale } from './browser-initialization-presentation'
 import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-types'
 import { markWebSessionBrowserPlacementAdopted } from '../browser/placement/web-session-browser-placement'
@@ -38,6 +39,7 @@ export function adoptFrameDrawnClientHostedBrowserHandles(
         batchContext
       )
     }
+    annotateBrowserPageHandles(handles, [existing.page.id])
     handles[existing.page.id] = {
       ...handles[existing.page.id],
       staged: undefined,

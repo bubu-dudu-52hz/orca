@@ -128,7 +128,7 @@ export class BrowserHostPageReconciliationActions {
         browserProfileId: intent.browserProfileId,
         ...browserHostClientProfileFor(this.state.lease, intent.browserProfileId),
         executionHostKey: intent.executionHostKey,
-        ...(url === undefined ? {} : { url }),
+        ...(url ? { url } : {}),
         ...(intent.workspaceId ? { workspaceId: intent.workspaceId } : {})
       },
       signal

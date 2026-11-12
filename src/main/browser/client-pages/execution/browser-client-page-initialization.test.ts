@@ -1,3 +1,4 @@
+import { BrowserRoutePageAvailability } from '../../routing/guest-authority/browser-route-page-availability'
 import { expect, it, vi } from 'vitest'
 import { BrowserClientPageCommandExecutor } from './browser-client-page-command-executor'
 import { BrowserClientHostCommandDispatcher } from '../../client-hosts/commands/browser-client-host-command-dispatcher'
@@ -119,3 +120,54 @@ it.each(['create', 'gap', 'navigate'] as const)(
     await executor.close()
   }
 )
+
+it('a shared availability report cancels only its exact environment guest during initialization', async () => {
+  const availability = new BrowserRoutePageAvailability()
+  const signal = new AbortController().signal
+  const peers = ['a', 'b'].map((name, index) => {
+    const h = createHarness()
+    h.routeSession.partition = `persist:orca-browser-v1-${name.repeat(64)}`
+    h.renderer.rendererWebContentsId = 11 + index
+    h.renderer.mountPage.mockResolvedValue({ webContentsId: 41 + index })
+    const started = Promise.withResolvers<AbortSignal>()
+    const executor = new BrowserClientPageCommandExecutor({
+      ...h.dependencies,
+      routeWebContents: {
+        ...h.dependencies.routeWebContents,
+        watchPageAvailability: availability.watch,
+        initializeGuest: (_claim, _url, pending) => {
+          started.resolve(pending)
+          return new Promise<string>((_resolve, reject) =>
+            pending.addEventListener('abort', () => reject(new Error('guest-lost')), { once: true })
+          )
+        }
+      }
+    })
+    const command = { ...create(), pageHostGeneration: 7 + index }
+    return { ...h, executor, started, command }
+  })
+  try {
+    await Promise.all(peers.map((p) => p.executor.handle(p.command, signal)))
+    const navigations = peers.map((p) =>
+      p.executor.handle(
+        {
+          ...p.command,
+          commandSequence: 2,
+          commandId: 'navigate',
+          command: { type: 'navigate', url: 'https://example.internal/path' }
+        },
+        signal
+      )
+    )
+    const [a, b] = await Promise.all(peers.map((p) => p.started.promise))
+    availability.report(peers[0].dependencies.routeWebContents.claimGuestLifecycle.mock.calls[0][0])
+    await expect(navigations[0]).resolves.toMatchObject({ status: 'failed' })
+    expect(a.aborted).toBe(true)
+    expect(b.aborted).toBe(false)
+    availability.report(peers[1].dependencies.routeWebContents.claimGuestLifecycle.mock.calls[0][0])
+    await expect(navigations[1]).resolves.toMatchObject({ status: 'failed' })
+    expect(b.aborted).toBe(true)
+  } finally {
+    await Promise.all(peers.map((p) => p.executor.close()))
+  }
+})

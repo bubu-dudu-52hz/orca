@@ -1,4 +1,8 @@
 // @vitest-environment happy-dom
+import {
+  annotateBrowserPageHandles,
+  markHydratedBrowserPageHandles
+} from '@/store/slices/browser/hosts/browser-initialization-presentation-ownership'
 import { act, cleanup, render as renderWithProviders, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -102,7 +106,7 @@ function render(ui: React.ReactElement<{ browserTab: BrowserPage }>) {
 
 describe('ClientHostedBrowserPagePane', () => {
   beforeEach(() => {
-    useAppStore.setState({ remoteBrowserPageHandlesByPageId: {} })
+    useAppStore.setState({ remoteBrowserPageHandlesByPageId: markHydratedBrowserPageHandles({}) })
     mocks.attach.mockReset()
     mocks.restoredPageUnrecovered = false
     mocks.realRecoveryWindow = false
@@ -122,19 +126,22 @@ describe('ClientHostedBrowserPagePane', () => {
       vi.useFakeTimers()
       mocks.realRecoveryWindow = true
       useAppStore.setState({
-        remoteBrowserPageHandlesByPageId: {
-          'page-a': {
-            environmentId: 'environment-a',
-            remotePageId: 'page-a',
-            restoredFromSession: true,
-            initializationPresentation: {
-              disposition: 'pending',
-              receivedFrame: 1,
-              delivery: captureBrowserInitializationDelivery('environment-a')
-            },
-            placement: placement ?? { ...PLACEMENT, pageHostGeneration: 0 }
-          }
-        },
+        remoteBrowserPageHandlesByPageId: annotateBrowserPageHandles(
+          {
+            'page-a': {
+              environmentId: 'environment-a',
+              remotePageId: 'page-a',
+              restoredFromSession: true,
+              initializationPresentation: {
+                disposition: 'pending',
+                receivedFrame: 1,
+                delivery: captureBrowserInitializationDelivery('environment-a')
+              },
+              placement: placement ?? { ...PLACEMENT, pageHostGeneration: 0 }
+            }
+          },
+          ['page-a']
+        ),
         runtimeStatusByEnvironmentId: new Map([
           ['environment-a', connectedRuntimeStatus('runtime-a', 1)]
         ])
@@ -173,17 +180,20 @@ describe('ClientHostedBrowserPagePane', () => {
       )
       act(() =>
         useAppStore.setState((s) => ({
-          remoteBrowserPageHandlesByPageId: {
-            ...s.remoteBrowserPageHandlesByPageId,
-            'page-a': {
-              ...s.remoteBrowserPageHandlesByPageId['page-a'],
-              initializationPresentation: {
-                disposition: 'stopped',
-                receivedFrame: 2,
-                delivery: captureBrowserInitializationDelivery('environment-a')
+          remoteBrowserPageHandlesByPageId: annotateBrowserPageHandles(
+            {
+              ...s.remoteBrowserPageHandlesByPageId,
+              'page-a': {
+                ...s.remoteBrowserPageHandlesByPageId['page-a'],
+                initializationPresentation: {
+                  disposition: 'stopped',
+                  receivedFrame: 2,
+                  delivery: captureBrowserInitializationDelivery('environment-a')
+                }
               }
-            }
-          }
+            },
+            ['page-a']
+          )
         }))
       )
       const stopped = { ...pending, loading: false }
@@ -194,13 +204,16 @@ describe('ClientHostedBrowserPagePane', () => {
       mocks.attach.mockReturnValue(retainedAttachment(webview))
       act(() =>
         useAppStore.setState((s) => ({
-          remoteBrowserPageHandlesByPageId: {
-            ...s.remoteBrowserPageHandlesByPageId,
-            'page-a': {
-              ...s.remoteBrowserPageHandlesByPageId['page-a'],
-              initializationPresentation: undefined
-            }
-          }
+          remoteBrowserPageHandlesByPageId: annotateBrowserPageHandles(
+            {
+              ...s.remoteBrowserPageHandlesByPageId,
+              'page-a': {
+                ...s.remoteBrowserPageHandlesByPageId['page-a'],
+                initializationPresentation: undefined
+              }
+            },
+            ['page-a']
+          )
         }))
       )
       view.rerender(pane(stopped, PLACEMENT))
@@ -222,7 +235,7 @@ describe('ClientHostedBrowserPagePane', () => {
       useAppStore.setState({
         browserTabsByWorktree: {},
         browserPagesByWorkspace: {},
-        remoteBrowserPageHandlesByPageId: {},
+        remoteBrowserPageHandlesByPageId: markHydratedBrowserPageHandles({}),
         unifiedTabsByWorktree: {},
         groupsByWorktree: {},
         layoutByWorktree: {},

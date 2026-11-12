@@ -8,7 +8,11 @@ import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-
 import type { RuntimeMobileSessionBrowserTab } from '../../../../shared/runtime-mobile-session-tab-contracts'
 import type { BrowserPage, BrowserWorkspace } from '../../../../shared/browser-workspace-types'
 import type { Tab } from '../../../../shared/tab-types'
-import type { WebSessionTabsSyncState, MirroredBrowserTab } from './state'
+import type {
+  WebSessionTabsSyncState,
+  MirroredBrowserTab,
+  WebSessionTabsSnapshotApplyOptions
+} from './state'
 import { readBrowserClientHostId } from '../browser/client-hosting/browser-client-host-identity'
 import { peekWebSessionBrowserPlacementGroup } from '../browser/placement/web-session-browser-placement'
 import { browserPageEqual, optionalRuntimeBrowserPlacementsEqual } from './state-equality-tabs'
@@ -122,14 +126,15 @@ export function resolveMirroredBrowserPageContent(
   existingPage: BrowserPage | undefined,
   presentation?: BrowserInitializationPresentation,
   previousPresentation?: BrowserInitializationPresentation,
-  stale = false
+  stale = false,
+  reconcile = false
 ): Pick<BrowserPage, 'url' | 'title' | 'loading' | 'canGoBack' | 'canGoForward' | 'faviconUrl'> {
   const localAction = existingPage && hasBrowserPageInitializationAction(existingPage.id)
   if (
     existingPage &&
     (localAction ||
       stale ||
-      (clientHostsMirroredBrowserPage(tab) && !presentation && !previousPresentation))
+      (!reconcile && clientHostsMirroredBrowserPage(tab) && !presentation && !previousPresentation))
   ) {
     return {
       url: existingPage.url,
@@ -163,7 +168,8 @@ export function buildMirroredBrowserTabs(
   hostGroupIdByTabId: ReadonlyMap<string, string>,
   fallbackGroupId: string,
   sortOffset: number,
-  now: number
+  now: number,
+  reconciliation?: WebSessionTabsSnapshotApplyOptions['reconcileBrowserPage']
 ): MirroredBrowserTab[] {
   const renderedGroupIds = collectLayoutGroupIds(state.layoutByWorktree[snapshot.worktree])
   const clientGroupIds = new Set(
@@ -210,7 +216,14 @@ export function buildMirroredBrowserTabs(
       presentation,
       previousHandle?.initializationPresentation,
       !browserInitializationReceiptCurrent(snapshot) &&
-        Boolean(previousHandle?.initializationPresentation)
+        Boolean(previousHandle?.initializationPresentation),
+      reconciliation?.page === existing?.page &&
+        previousHandle?.environmentId === reconciliation?.handle.environmentId &&
+        previousHandle?.remotePageId === reconciliation?.handle.remotePageId &&
+        optionalRuntimeBrowserPlacementsEqual(
+          previousHandle?.placement,
+          reconciliation?.handle.placement
+        )
     )
     const nextPage: BrowserPage = {
       id: pageId,

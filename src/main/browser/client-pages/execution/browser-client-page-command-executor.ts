@@ -3,7 +3,10 @@ import { publishBrowserClientRetainedPage } from '../lifecycle/browser-client-pa
 import { BrowserClientExecutorPageCreation } from './browser-client-executor-page-creation'
 import { BrowserClientPageInitializations } from './browser-client-page-initializations'
 import { BrowserClientPageMetadataParams } from '../../../../shared/browser/client-hosting/browser-client-page-metadata-protocol'
-import { closeBrowserClientExecutorPages } from './browser-client-page-executor-close'
+import {
+  closeBrowserClientExecutor,
+  cleanupBrowserClientExecutorPage
+} from './browser-client-page-executor-close'
 import {
   BrowserClientProfileSwitches,
   switchBrowserClientPageProfile
@@ -14,7 +17,6 @@ import {
   type BrowserClientHostCommandEvent
 } from '../../../../shared/browser/client-hosting/browser-client-host-protocol'
 import type { BrowserClientAutomationResult as BrowserClientHostCommandResult } from '../../../../shared/browser/client-hosting/browser-client-automation-protocol'
-import { cleanupRetainedBrowserClientPage } from '../lifecycle/browser-client-page-cleanup'
 import type { BrowserClientPageRendererIdentity } from '../../../../shared/browser/client-hosting/browser-client-page-renderer-protocol'
 import { browserClientPageCommandFailure } from './browser-client-page-command-failure'
 import { BrowserClientPageNavigationFence } from '../lifecycle/browser-client-page-navigation-fence'
@@ -47,6 +49,7 @@ export class BrowserClientPageCommandExecutor {
   private readonly profileSwitches = new BrowserClientProfileSwitches()
   private readonly navigationFence = new BrowserClientPageNavigationFence()
   private closePromise: Promise<void> | null = null
+  private closingPageAttempts?: Map<BrowserClientRetainedPage, Promise<void>>
   private authority: BrowserClientPageAuthorityIdentity
   private authorityTransitioning = false
   private closed = false
@@ -200,13 +203,30 @@ export class BrowserClientPageCommandExecutor {
   }
 
   close(): Promise<void> {
+    if (this.closePromise) {
+      return this.closePromise
+    }
     this.closed = true
+    this.closingPageAttempts = new Map()
     this.initializers.cancelAll()
-    return (this.closePromise ??= this.navigationFence.fenceBeforeCleanup(
-      this.profileSwitches.withStagedPages(this.pages.values()),
-      (claim) => this.dependencies.routeWebContents.revokeNavigation(claim),
-      () => this.closePages()
-    ))
+    return (this.closePromise ??= this.navigationFence
+      .fenceBeforeCleanup(
+        this.profileSwitches.withStagedPages(this.pages.values()),
+        (claim) => this.dependencies.routeWebContents.revokeNavigation(claim),
+        () =>
+          closeBrowserClientExecutor({
+            closeInitializations: () => this.initializers.closeAll(),
+            profileSwitches: this.profileSwitches,
+            creatingPages: this.creatingPages,
+            failedPages: this.failedPages,
+            pages: this.pages,
+            cleanupPage: (page) => this.cleanupPage(page),
+            uploadStaging: this.dependencies.uploadStaging
+          })
+      )
+      .finally(() => {
+        this.closingPageAttempts = undefined
+      }))
   }
 
   fenceNavigation(): void {
@@ -276,40 +296,23 @@ export class BrowserClientPageCommandExecutor {
     )?.inventory
   }
 
-  private async cleanupPage(
+  private cleanupPage(
     page: BrowserClientRetainedPage,
     previousRendererPage?: Readonly<BrowserClientPageRendererIdentity>,
     releaseUploads = true
   ): Promise<void> {
-    if (!page.cleanup) {
-      page.releaseAvailabilityWatch?.()
-      page.releaseAvailabilityWatch = undefined
-      this.dependencies.guestBinding.release(page.registration)
+    const closing = this.closingPageAttempts
+    const attempt = closing?.get(page)
+    if (attempt) {
+      return attempt
     }
-    return cleanupRetainedBrowserClientPage(
+    const cleanup = cleanupBrowserClientExecutorPage(
+      this.dependencies,
       page,
-      {
-        routeWebContents: this.dependencies.routeWebContents,
-        retireAutomation: this.dependencies.retireAutomation,
-        releaseUploadStaging: async () => {
-          if (releaseUploads) {
-            await this.dependencies.uploadStaging?.releasePage(page.inventory.browserPageId)
-          }
-        }
-      },
-      previousRendererPage
+      previousRendererPage,
+      releaseUploads
     )
-  }
-
-  private async closePages(): Promise<void> {
-    await this.initializers.closeAll()
-    return closeBrowserClientExecutorPages({
-      profileSwitches: this.profileSwitches,
-      creatingPages: this.creatingPages,
-      failedPages: this.failedPages,
-      pages: this.pages,
-      cleanupPage: (page) => this.cleanupPage(page),
-      uploadStaging: this.dependencies.uploadStaging
-    })
+    closing?.set(page, cleanup)
+    return cleanup
   }
 }

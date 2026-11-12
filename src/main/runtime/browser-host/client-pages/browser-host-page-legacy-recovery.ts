@@ -35,7 +35,7 @@ export function claimLegacyPageRecovery(
     records: Map<string, InitializationRecord>
     placements: BrowserHostPagePlacementRegistry
     requireState(state: BrowserHostLeaseState): void
-    settled(record: InitializationRecord): void
+    removeRecord(record: InitializationRecord): void
     cleanup(
       record: InitializationRecord,
       state: BrowserHostLeaseState,
@@ -53,7 +53,6 @@ export function claimLegacyPageRecovery(
   const connection = state.connectionToken
   const ledger = state.commandLedger
   let attempt: InitializationRecord['legacyAttempt']
-  let consumed = false
   const validate = (
     current: BrowserHostLeaseState,
     placement?: RuntimeBrowserClientPlacement
@@ -100,10 +99,9 @@ export function claimLegacyPageRecovery(
     commit(current, placement, replace) {
       validate(current, placement)
       replace()
-      owner.records.delete(input.browserPageId)
       record.legacyAttempt = undefined
       record.scope = undefined
-      consumed = true
+      owner.removeRecord(record)
     },
     failed(placement, executionHostKey, releaseGrant) {
       if (
@@ -138,12 +136,8 @@ export function claimLegacyPageRecovery(
         record.legacyAttempt = undefined
         record.scope = undefined
         if (record.closed && owner.records.get(input.browserPageId) === record) {
-          owner.records.delete(input.browserPageId)
-          owner.settled(record)
+          owner.removeRecord(record)
         }
-      }
-      if (consumed) {
-        owner.settled(record)
       }
     }
   }
