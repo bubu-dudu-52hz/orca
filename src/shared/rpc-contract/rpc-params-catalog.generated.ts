@@ -756,6 +756,7 @@ import { SetCollapsedParams } from './workspace-view-collapse-params'
 import { WorktreeCreate, WorktreePrefetchCreateBase } from './worktree-create-params'
 import {
   WorktreeActivate,
+  WorktreeArchive,
   WorktreeDetectedListParams,
   WorktreeForceDeleteBranch,
   WorktreeListParams,
@@ -765,6 +766,7 @@ import {
   WorktreeResolveCallerParent,
   WorktreeResolveMrBase,
   WorktreeResolvePrBase,
+  WorktreeRestore,
   WorktreeRunApprovedSetup,
   WorktreeSet,
   WorktreeShow,
@@ -1652,6 +1654,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'workspacePorts.scanHost': WorkspacePortScanHostParams,
   'worktree.activate': WorktreeActivate,
   'worktree.adoptProvisionedRoot': WorktreeAdoptProvisionedRoot,
+  'worktree.archive': WorktreeArchive,
   'worktree.create': WorktreeCreate,
   'worktree.detectedList': WorktreeDetectedListParams,
   'worktree.forceDeleteBranch': WorktreeForceDeleteBranch,
@@ -1665,6 +1668,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'worktree.resolveCallerParent': WorktreeResolveCallerParent,
   'worktree.resolveMrBase': WorktreeResolveMrBase,
   'worktree.resolvePrBase': WorktreeResolvePrBase,
+  'worktree.restore': WorktreeRestore,
   'worktree.rm': WorktreeRemove,
   'worktree.runApprovedSetup': WorktreeRunApprovedSetup,
   'worktree.set': WorktreeSet,
