@@ -134,6 +134,7 @@ export function writableWebSessionTabsRecord<K extends WebSessionTabsBatchRecord
 ): NonNullable<WebSessionTabsSyncState[K]> {
   const record = (state[recordKey] ?? {}) as NonNullable<WebSessionTabsSyncState[K]>
   if (!batchContext) {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Each branch copies the selected record without changing its value type; TypeScript cannot narrow generic K.
     return (
       recordKey === 'remoteBrowserPageHandlesByPageId'
         ? copyBrowserPageHandles(state.remoteBrowserPageHandlesByPageId)
@@ -144,6 +145,7 @@ export function writableWebSessionTabsRecord<K extends WebSessionTabsBatchRecord
   if (batchContext.changedRecords.has(recordKey)) {
     return record
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Each branch copies the selected record without changing its value type; TypeScript cannot narrow generic K.
   const next = (
     recordKey === 'remoteBrowserPageHandlesByPageId'
       ? copyBrowserPageHandles(state.remoteBrowserPageHandlesByPageId)
